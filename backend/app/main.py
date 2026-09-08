@@ -8,11 +8,13 @@ settings = get_settings()
 
 app = FastAPI(title=settings.app_name)
 
-# Wide open for local development only — the React dev server (Vite,
-# default port 5173) runs on a different origin than this API.
+# Defaults to the Vite dev server's origin; MARKET_CORS_ORIGINS overrides
+# this for a real deployment (see docs/deployment.md) — the deployed
+# frontend's origin must be listed here or every request will be blocked
+# by the browser, not this server.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=settings.cors_origin_list,
     allow_methods=["GET"],
     allow_headers=["*"],
 )
