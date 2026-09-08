@@ -11,7 +11,7 @@ from dataclasses import dataclass
 import pandas as pd
 
 from app.data.paths import PROCESSED_DATA_DIR, RAW_DATA_DIR, ticker_filename
-from app.data.universe import UNIVERSE, Instrument
+from app.data.universe import UNIVERSE, AssetClass, Instrument
 
 logger = logging.getLogger(__name__)
 
@@ -66,21 +66,34 @@ def _drop_duplicate_dates(df: pd.DataFrame) -> tuple[pd.DataFrame, int]:
     return df, n_before - len(df)
 
 
-def _leading_unusable_mask(df: pd.DataFrame) -> pd.Series:
-    """A row is unusable if it has a non-positive core price, or zero
-    volume. Zero volume alone is the signature of vendor placeholder data,
-    not real market activity: NESTLEIND.NS in this dataset has a completely
-    flat price and zero volume for its first ~5 years (2005-2010, 1238
-    rows) — no real instrument trades at an unchanged price for five years
-    straight. A real, occasional zero-volume day is expected to occur later
-    in a series and is handled as a warning, not a drop (see below)."""
+def _leading_unusable_mask(df: pd.DataFrame, asset_class: AssetClass) -> pd.Series:
+    """A row is unusable if it has a non-positive core price, or (for
+    STOCK/COMMODITY only) zero volume. Zero volume is the signature of
+    vendor placeholder data for an instrument that's actually traded, not
+    real market activity: NESTLEIND.NS has a completely flat price and zero
+    volume for its first ~5 years (2005-2010, 1238 rows) — no real
+    instrument trades at an unchanged price for five years straight.
+
+    INDEX instruments are excluded from the volume check: ^NSEI legitimately
+    has Volume == 0 for its entire 2007-2013 history in this dataset (Yahoo
+    doesn't populate real trade volume for an index — only its constituents
+    trade), while its price level moves completely normally over that
+    period. Applying the same zero-volume-means-fake heuristic there would
+    have wrongly truncated 5+ years of perfectly valid index history — this
+    was caught by an unexpectedly low warm-up rate on cross-asset features
+    that depend on the Nifty series (Phase 2c).
+
+    A real, occasional zero-volume day appearing later in a series is
+    handled as a warning, not a drop (see below)."""
     present_price_cols = [c for c in _CORE_PRICE_COLS if c in df.columns]
     bad_price = (df[present_price_cols] <= 0).any(axis=1)
-    bad_volume = (df["volume"] <= 0) if "volume" in df.columns else False
+    if asset_class == AssetClass.INDEX or "volume" not in df.columns:
+        return bad_price
+    bad_volume = df["volume"] <= 0
     return bad_price | bad_volume
 
 
-def _truncate_leading_unusable_rows(df: pd.DataFrame) -> tuple[pd.DataFrame, int]:
+def _truncate_leading_unusable_rows(df: pd.DataFrame, asset_class: AssetClass) -> tuple[pd.DataFrame, int]:
     """Drop leading rows that don't represent real trading activity (see
     `_leading_unusable_mask`). We only truncate from the *start* of the
     series, not anywhere in the middle: a bad row in the middle of an
@@ -88,7 +101,7 @@ def _truncate_leading_unusable_rows(df: pd.DataFrame) -> tuple[pd.DataFrame, int
     error) that we want to keep visible, not silently drop, since dropping
     rows out of the middle of a time series creates a gap that a naive
     .shift()-based feature would silently paper over."""
-    is_bad = _leading_unusable_mask(df)
+    is_bad = _leading_unusable_mask(df, asset_class)
     if not is_bad.any():
         return df, 0
     first_good = is_bad[~is_bad].index.min()
@@ -106,9 +119,9 @@ def clean_instrument(instrument: Instrument) -> CleanResult:
     df = _to_snake_case_columns(df)
     df = _drop_tz(df)
     df, n_dup = _drop_duplicate_dates(df)
-    df, n_leading = _truncate_leading_unusable_rows(df)
+    df, n_leading = _truncate_leading_unusable_rows(df, instrument.asset_class)
 
-    remaining_bad = _leading_unusable_mask(df)
+    remaining_bad = _leading_unusable_mask(df, instrument.asset_class)
     if remaining_bad.any():
         logger.warning(
             "%s: %d non-leading rows still have a non-positive core price or zero volume "

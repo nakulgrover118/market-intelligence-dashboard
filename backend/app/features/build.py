@@ -15,6 +15,7 @@ import pandas as pd
 
 from app.data.paths import FEATURES_DATA_DIR, PROCESSED_DATA_DIR, ticker_filename
 from app.data.universe import UNIVERSE, Instrument
+from app.features import cross_asset as xa
 from app.features import technical as ta
 
 logger = logging.getLogger(__name__)
@@ -22,9 +23,26 @@ logger = logging.getLogger(__name__)
 SMA_WINDOWS = (10, 20, 50, 200)
 RETURN_WINDOWS = (1, 5, 10, 20)
 VOL_WINDOWS = (20, 60)
+BETA_WINDOWS = (20, 60)
+EXCESS_RETURN_WINDOWS = (5, 20)
+MACRO_RETURN_WINDOWS = (5, 20)
+
+REFERENCE_INDEX_TICKER = "^NSEI"
+GOLD_TICKER = "GOLDBEES.NS"
+SILVER_TICKER = "SILVERBEES.NS"
 
 
-def build_features_for_instrument(df: pd.DataFrame) -> pd.DataFrame:
+def build_features_for_instrument(
+    df: pd.DataFrame,
+    index_close: pd.Series | None = None,
+    gold_close: pd.Series | None = None,
+    silver_close: pd.Series | None = None,
+) -> pd.DataFrame:
+    """`index_close`/`gold_close`/`silver_close` are the *other* instruments'
+    cleaned close series, used to compute cross-asset features (Phase 2c).
+    Pass None for whichever reference doesn't apply — e.g. the Nifty
+    instrument itself doesn't get a beta-vs-itself feature (see
+    build_features_for_universe, which decides this per-ticker)."""
     close, high, low, volume = df["close"], df["high"], df["low"], df["volume"]
     features: dict[str, pd.Series] = {}
 
@@ -47,6 +65,26 @@ def build_features_for_instrument(df: pd.DataFrame) -> pd.DataFrame:
     features["atr_14"] = ta.average_true_range(high, low, close, window=14)
     features["volume_ratio_20"] = ta.volume_ratio(volume, window=20)
 
+    if index_close is not None:
+        for w in BETA_WINDOWS:
+            features[f"beta_{w}d_vs_nifty"] = xa.rolling_beta(close, index_close, w).reindex(df.index)
+            features[f"corr_{w}d_vs_nifty"] = xa.rolling_correlation(close, index_close, w).reindex(df.index)
+        for w in EXCESS_RETURN_WINDOWS:
+            features[f"excess_return_{w}d_vs_nifty"] = xa.excess_log_return(close, index_close, w).reindex(
+                df.index
+            )
+
+    if gold_close is not None:
+        for w in MACRO_RETURN_WINDOWS:
+            features[f"gold_return_{w}d"] = ta.log_return(gold_close, w).reindex(df.index)
+
+    if silver_close is not None:
+        for w in MACRO_RETURN_WINDOWS:
+            features[f"silver_return_{w}d"] = ta.log_return(silver_close, w).reindex(df.index)
+
+    if gold_close is not None and silver_close is not None:
+        features["gold_silver_ratio"] = xa.price_ratio(gold_close, silver_close).reindex(df.index)
+
     macd_df = ta.macd(close)
     bb_df = ta.bollinger_bands(close)
 
@@ -57,19 +95,46 @@ def build_features_for_instrument(df: pd.DataFrame) -> pd.DataFrame:
 
 def build_features_for_universe(instruments: list[Instrument] = UNIVERSE) -> None:
     FEATURES_DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+    def _load_close(ticker: str) -> pd.Series:
+        return pd.read_parquet(PROCESSED_DATA_DIR / ticker_filename(ticker))["close"]
+
+    reference_index = _load_close(REFERENCE_INDEX_TICKER)
+    gold = _load_close(GOLD_TICKER)
+    silver = _load_close(SILVER_TICKER)
+
     for instrument in instruments:
         in_path = PROCESSED_DATA_DIR / ticker_filename(instrument.ticker)
         df = pd.read_parquet(in_path)
-        feature_df = build_features_for_instrument(df)
+        feature_df = build_features_for_instrument(
+            df,
+            # Skip a reference feature when the instrument *is* that
+            # reference — a beta-vs-itself or gold-return-of-gold column
+            # would be degenerate/redundant with its own single-asset features.
+            index_close=None if instrument.ticker == REFERENCE_INDEX_TICKER else reference_index,
+            gold_close=None if instrument.ticker == GOLD_TICKER else gold,
+            silver_close=None if instrument.ticker == SILVER_TICKER else silver,
+        )
         out_path = FEATURES_DATA_DIR / ticker_filename(instrument.ticker)
         feature_df.to_parquet(out_path)
-        n_valid = feature_df.dropna().shape[0]
+
+        # Every silver-derived column (silver_return_*, gold_silver_ratio) is
+        # only defined from SILVERBEES.NS's 2022 listing onward (see
+        # docs/roadmap.md), so an all-columns dropna() collapses warm-up rate
+        # to whatever that instrument allows. Reporting both figures makes
+        # that visible instead of it looking like a regression.
+        n_valid_all = feature_df.dropna().shape[0]
+        cols_excl_silver = [c for c in feature_df.columns if "silver" not in c]
+        n_valid_excl_silver = feature_df[cols_excl_silver].dropna().shape[0]
         logger.info(
-            "%s: %d feature rows (%d fully warmed up, %.0f%%)",
+            "%s: %d feature rows (%d fully warmed up incl. silver features [%.0f%%]; "
+            "%d excl. them [%.0f%%])",
             instrument.ticker,
             len(feature_df),
-            n_valid,
-            100 * n_valid / len(feature_df),
+            n_valid_all,
+            100 * n_valid_all / len(feature_df),
+            n_valid_excl_silver,
+            100 * n_valid_excl_silver / len(feature_df),
         )
 
 

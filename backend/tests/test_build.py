@@ -27,6 +27,30 @@ def clean_df() -> pd.DataFrame:
     )
 
 
+@pytest.fixture
+def reference_close(clean_df) -> pd.Series:
+    rng = np.random.default_rng(11)
+    n = len(clean_df)
+    prices = 1000 + np.cumsum(rng.normal(0.02, 0.8, n))
+    return pd.Series(prices, index=clean_df.index)
+
+
+@pytest.fixture
+def gold_close(clean_df) -> pd.Series:
+    rng = np.random.default_rng(13)
+    n = len(clean_df)
+    prices = 50 + np.cumsum(rng.normal(0.01, 0.3, n))
+    return pd.Series(prices, index=clean_df.index)
+
+
+@pytest.fixture
+def silver_close(clean_df) -> pd.Series:
+    rng = np.random.default_rng(17)
+    n = len(clean_df)
+    prices = 60 + np.cumsum(rng.normal(0.01, 0.5, n))
+    return pd.Series(prices, index=clean_df.index)
+
+
 def test_output_is_aligned_with_input_index(clean_df):
     features = build_features_for_instrument(clean_df)
     pd.testing.assert_index_equal(features.index, clean_df.index)
@@ -54,4 +78,35 @@ def test_full_pipeline_has_no_lookahead(clean_df):
     truncate_at = 150
     full = build_features_for_instrument(clean_df)
     truncated = build_features_for_instrument(clean_df.iloc[:truncate_at])
+    pd.testing.assert_frame_equal(full.iloc[:truncate_at], truncated)
+
+
+def test_no_cross_asset_columns_when_references_omitted(clean_df):
+    features = build_features_for_instrument(clean_df)
+    cross_asset_cols = [c for c in features.columns if "nifty" in c or "gold" in c or "silver" in c]
+    assert cross_asset_cols == []
+
+
+def test_cross_asset_columns_present_when_references_given(clean_df, reference_close, gold_close, silver_close):
+    features = build_features_for_instrument(
+        clean_df, index_close=reference_close, gold_close=gold_close, silver_close=silver_close
+    )
+    for expected in [
+        "beta_60d_vs_nifty", "corr_20d_vs_nifty", "excess_return_5d_vs_nifty",
+        "gold_return_5d", "silver_return_20d", "gold_silver_ratio",
+    ]:
+        assert expected in features.columns
+
+
+def test_full_pipeline_with_cross_asset_features_has_no_lookahead(
+    clean_df, reference_close, gold_close, silver_close
+):
+    truncate_at = 150
+    full = build_features_for_instrument(clean_df, reference_close, gold_close, silver_close)
+    truncated = build_features_for_instrument(
+        clean_df.iloc[:truncate_at],
+        reference_close.iloc[:truncate_at],
+        gold_close.iloc[:truncate_at],
+        silver_close.iloc[:truncate_at],
+    )
     pd.testing.assert_frame_equal(full.iloc[:truncate_at], truncated)

@@ -99,6 +99,21 @@ def test_truncates_leading_stale_zero_volume_rows(tmp_path, monkeypatch, instrum
     assert (cleaned["volume"] > 0).all()
 
 
+def test_index_zero_volume_does_not_truncate(tmp_path, monkeypatch):
+    """The ^NSEI case: an index can legitimately have Volume == 0 for its
+    entire history (Yahoo doesn't populate real trade volume for an index),
+    while its price is completely valid. Must not be truncated like a
+    stock/ETF's zero-volume placeholder data would be."""
+    index_instrument = Instrument("^NSEI", "Nifty 50", AssetClass.INDEX)
+    df = _raw_df_stale_leading_period(n_stale=3, n_good=5)
+    _write_raw(tmp_path, monkeypatch, index_instrument, df)
+
+    result = clean.clean_instrument(index_instrument)
+
+    assert result.rows_out == 8
+    assert result.rows_dropped_leading_unusable == 0
+
+
 def test_renames_columns_to_snake_case(tmp_path, monkeypatch, instrument):
     df = _raw_df(n_bad=0, n_good=5)
     _write_raw(tmp_path, monkeypatch, instrument, df)
