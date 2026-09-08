@@ -55,15 +55,20 @@ def transformed_feature_matrix(pipeline: Pipeline, panel: pd.DataFrame) -> tuple
     return X_transformed, feature_names
 
 
+def normalize_shap_output(shap_values) -> np.ndarray:
+    """Older/newer shap+lightgbm combinations differ on returning a single
+    array (positive-class contributions) vs a [neg, pos] list for binary
+    classification — normalize to the positive-class array either way.
+    Shared so the API's model registry (which keeps a persisted
+    TreeExplainer around across requests) doesn't duplicate this check."""
+    if isinstance(shap_values, list):
+        return shap_values[1]
+    return shap_values
+
+
 def compute_shap_values(pipeline: Pipeline, X_transformed: np.ndarray) -> np.ndarray:
     explainer = shap.TreeExplainer(pipeline.named_steps["model"])
-    shap_values = explainer.shap_values(X_transformed)
-    # Older/newer shap+lightgbm combinations differ on returning a single
-    # array (positive-class contributions) vs a [neg, pos] list for binary
-    # classification — normalize to the positive-class array either way.
-    if isinstance(shap_values, list):
-        shap_values = shap_values[1]
-    return shap_values
+    return normalize_shap_output(explainer.shap_values(X_transformed))
 
 
 def global_feature_importance(shap_values: np.ndarray, feature_names: list[str]) -> pd.DataFrame:

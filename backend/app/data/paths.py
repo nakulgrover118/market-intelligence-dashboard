@@ -9,6 +9,7 @@ PROCESSED_DATA_DIR = _DATA_ROOT / "processed"
 FEATURES_DATA_DIR = _DATA_ROOT / "features"
 LABELS_DATA_DIR = _DATA_ROOT / "labels"
 RESULTS_DATA_DIR = _DATA_ROOT / "results"
+MODELS_DATA_DIR = _DATA_ROOT / "models"
 
 
 def ticker_filename(ticker: str) -> str:
