@@ -39,11 +39,16 @@ def build_features_for_instrument(
     silver_close: pd.Series | None = None,
 ) -> pd.DataFrame:
     """`index_close`/`gold_close`/`silver_close` are the *other* instruments'
-    cleaned close series, used to compute cross-asset features (Phase 2c).
+    cleaned adj_close series, used to compute cross-asset features (Phase 2c).
     Pass None for whichever reference doesn't apply — e.g. the Nifty
     instrument itself doesn't get a beta-vs-itself feature (see
-    build_features_for_universe, which decides this per-ticker)."""
-    close, high, low, volume = df["close"], df["high"], df["low"], df["volume"]
+    build_features_for_universe, which decides this per-ticker).
+
+    Uses adj_close/adj_high/adj_low (split & dividend back-adjusted, derived
+    in clean.py), not raw close/high/low — using unadjusted prices would
+    inject a fake return spike at every split/dividend date into every
+    price-based feature."""
+    close, high, low, volume = df["adj_close"], df["adj_high"], df["adj_low"], df["volume"]
     features: dict[str, pd.Series] = {}
 
     for w in RETURN_WINDOWS:
@@ -97,7 +102,7 @@ def build_features_for_universe(instruments: list[Instrument] = UNIVERSE) -> Non
     FEATURES_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
     def _load_close(ticker: str) -> pd.Series:
-        return pd.read_parquet(PROCESSED_DATA_DIR / ticker_filename(ticker))["close"]
+        return pd.read_parquet(PROCESSED_DATA_DIR / ticker_filename(ticker))["adj_close"]
 
     reference_index = _load_close(REFERENCE_INDEX_TICKER)
     gold = _load_close(GOLD_TICKER)

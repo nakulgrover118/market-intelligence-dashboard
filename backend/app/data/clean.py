@@ -59,6 +59,22 @@ def _drop_tz(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _add_adjusted_high_low(df: pd.DataFrame) -> pd.DataFrame:
+    """Yahoo provides an adjusted Close (back-adjusted for splits and
+    dividends) but not adjusted High/Low. Using adj_close for returns while
+    leaving high/low unadjusted would create a fake volatility spike in any
+    High/Low-based indicator (ATR, etc.) at every split date — e.g. a 2:1
+    split would make the pre-split High look like it was 2x the post-split
+    Low on paper. We derive the same back-adjustment factor Yahoo applied
+    to Close (adj_close / close) and apply it to High and Low too, so every
+    price-based feature can consistently use the adjusted series."""
+    df = df.copy()
+    adj_factor = df["adj_close"] / df["close"]
+    df["adj_high"] = df["high"] * adj_factor
+    df["adj_low"] = df["low"] * adj_factor
+    return df
+
+
 def _drop_duplicate_dates(df: pd.DataFrame) -> tuple[pd.DataFrame, int]:
     n_before = len(df)
     df = df.sort_index()
@@ -120,6 +136,7 @@ def clean_instrument(instrument: Instrument) -> CleanResult:
     df = _drop_tz(df)
     df, n_dup = _drop_duplicate_dates(df)
     df, n_leading = _truncate_leading_unusable_rows(df, instrument.asset_class)
+    df = _add_adjusted_high_low(df)
 
     remaining_bad = _leading_unusable_mask(df, instrument.asset_class)
     if remaining_bad.any():

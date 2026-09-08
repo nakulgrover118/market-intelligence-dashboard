@@ -114,6 +114,33 @@ def test_index_zero_volume_does_not_truncate(tmp_path, monkeypatch):
     assert result.rows_dropped_leading_unusable == 0
 
 
+def test_derives_adjusted_high_low_from_adj_close_factor(tmp_path, monkeypatch, instrument):
+    """A 2:1-split-style adj_close (half of raw close) must scale High/Low
+    by the same factor, not leave them at raw values — otherwise ATR/etc.
+    would see a fake volatility spike at the split date."""
+    dates = pd.date_range("2020-01-01", periods=3, freq="B", tz="Asia/Kolkata")
+    df = pd.DataFrame(
+        {
+            "Open": [100.0, 100.0, 100.0],
+            "High": [110.0, 110.0, 110.0],
+            "Low": [90.0, 90.0, 90.0],
+            "Close": [100.0, 100.0, 100.0],
+            "Adj Close": [50.0, 50.0, 50.0],  # half of Close, e.g. post a 2:1 split adjustment
+            "Volume": [1000, 1000, 1000],
+            "Dividends": [0.0, 0.0, 0.0],
+            "Stock Splits": [0.0, 0.0, 0.0],
+        },
+        index=dates,
+    )
+    _write_raw(tmp_path, monkeypatch, instrument, df)
+
+    clean.clean_instrument(instrument)
+
+    cleaned = pd.read_parquet(tmp_path / "processed" / ticker_filename(instrument.ticker))
+    assert (cleaned["adj_high"] == 55.0).all()
+    assert (cleaned["adj_low"] == 45.0).all()
+
+
 def test_renames_columns_to_snake_case(tmp_path, monkeypatch, instrument):
     df = _raw_df(n_bad=0, n_good=5)
     _write_raw(tmp_path, monkeypatch, instrument, df)
@@ -123,6 +150,7 @@ def test_renames_columns_to_snake_case(tmp_path, monkeypatch, instrument):
     cleaned = pd.read_parquet(tmp_path / "processed" / ticker_filename(instrument.ticker))
     assert list(cleaned.columns) == [
         "open", "high", "low", "close", "adj_close", "volume", "dividends", "stock_splits",
+        "adj_high", "adj_low",
     ]
 
 

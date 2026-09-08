@@ -21,6 +21,8 @@ def clean_df() -> pd.DataFrame:
             "low": close - 1.0,
             "close": close,
             "adj_close": close,
+            "adj_high": close + 1.0,
+            "adj_low": close - 1.0,
             "volume": rng.integers(1000, 5000, n).astype(float),
         },
         index=pd.date_range("2023-01-01", periods=n, freq="B", name="date"),
@@ -70,6 +72,23 @@ def test_late_rows_are_fully_warmed_up(clean_df):
     non-NaN."""
     features = build_features_for_instrument(clean_df)
     assert not features.iloc[250:].isna().any().any()
+
+
+def test_uses_adjusted_prices_not_raw_close(clean_df):
+    """Regression test: build.py once read df['close'] instead of
+    df['adj_close'], which would inject a fake return spike at every split/
+    dividend date (found via a real ~37% close-vs-adj_close divergence on
+    INFY.NS). Simulate a stock split: adj_close is exactly half of close
+    for the whole series, so a naive close-based return would be ~0, but
+    the correct adj_close-based return should reflect the actual drift."""
+    split_df = clean_df.copy()
+    split_df["adj_close"] = split_df["close"] / 2
+    split_df["adj_high"] = split_df["high"] / 2
+    split_df["adj_low"] = split_df["low"] / 2
+
+    features = build_features_for_instrument(split_df)
+    expected = np.log(split_df["adj_close"] / split_df["adj_close"].shift(1))
+    pd.testing.assert_series_equal(features["log_return_1d"], expected, check_names=False)
 
 
 def test_full_pipeline_has_no_lookahead(clean_df):
