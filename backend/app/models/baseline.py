@@ -50,15 +50,18 @@ def build_pipeline(numeric_columns: list[str]) -> Pipeline:
     return Pipeline([("preprocess", preprocessor), ("model", LogisticRegression(max_iter=1000))])
 
 
-def run_walk_forward_evaluation(
+def run_walk_forward_predictions(
     panel: pd.DataFrame, folds: list[Fold], pipeline_builder: PipelineBuilder = build_pipeline
-) -> list[FoldMetrics]:
-    """`pipeline_builder` is pluggable so the exact same walk-forward
-    protocol (same folds, same preprocessing shape, same metrics) can be
-    reused to compare model types fairly — see app/models/diagnostics.py,
-    which reuses this to test a nonlinear model against this baseline."""
+) -> pd.DataFrame:
+    """Row-level out-of-sample predictions for every fold, concatenated in
+    fold order. `pipeline_builder` is pluggable so the exact same
+    walk-forward protocol (same folds, same preprocessing shape) can be
+    reused to compare model types fairly — see app/models/diagnostics.py
+    (nonlinear vs linear) and app/models/calibration.py, which chains
+    these row-level predictions across folds to calibrate each fold using
+    the previous fold's genuine out-of-sample track record."""
     numeric_columns = feature_columns(panel)
-    results = []
+    frames = []
     for fold in folds:
         train = panel.loc[fold.train_idx]
         test = panel.loc[fold.test_idx]
@@ -67,7 +70,26 @@ def run_walk_forward_evaluation(
         pipeline.fit(train[numeric_columns + CATEGORICAL_COLUMNS], train["label"])
         y_prob = pipeline.predict_proba(test[numeric_columns + CATEGORICAL_COLUMNS])[:, 1]
 
-        fm = build_fold_metrics(fold.name, train["label"].to_numpy(), test["label"].to_numpy(), y_prob)
+        frames.append(
+            pd.DataFrame(
+                {"fold": fold.name, "date": test["date"].to_numpy(), "y_true": test["label"].to_numpy(), "y_prob": y_prob},
+                index=test.index,
+            )
+        )
+    return pd.concat(frames)
+
+
+def run_walk_forward_evaluation(
+    panel: pd.DataFrame, folds: list[Fold], pipeline_builder: PipelineBuilder = build_pipeline
+) -> list[FoldMetrics]:
+    predictions = run_walk_forward_predictions(panel, folds, pipeline_builder)
+    results = []
+    for fold in folds:
+        fold_predictions = predictions[predictions["fold"] == fold.name]
+        train_labels = panel.loc[fold.train_idx, "label"].to_numpy()
+        fm = build_fold_metrics(
+            fold.name, train_labels, fold_predictions["y_true"].to_numpy(), fold_predictions["y_prob"].to_numpy()
+        )
         results.append(fm)
         logger.info(
             "fold %s: n_train=%d n_test=%d brier=%.4f (naive %.4f) log_loss=%.4f (naive %.4f) roc_auc=%.3f",
