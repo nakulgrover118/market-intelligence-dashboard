@@ -11,16 +11,14 @@ downstream can be traced back to a known-good starting point.
 import logging
 import time
 from dataclasses import dataclass
-from pathlib import Path
 
 import pandas as pd
 import yfinance as yf
 
+from app.data.paths import RAW_DATA_DIR, ticker_filename
 from app.data.universe import UNIVERSE, Instrument
 
 logger = logging.getLogger(__name__)
-
-RAW_DATA_DIR = Path(__file__).resolve().parents[3] / "data" / "raw"
 
 # Columns we expect back from yfinance for a daily-bar history request.
 EXPECTED_COLUMNS = ["Open", "High", "Low", "Close", "Adj Close", "Volume"]
@@ -94,7 +92,7 @@ def ingest_instrument(instrument: Instrument, start: str = "2005-01-01") -> Inge
         logger.warning("%s: %s", instrument.ticker, w)
 
     RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
-    out_path = RAW_DATA_DIR / f"{instrument.ticker.replace('^', 'IDX_')}.parquet"
+    out_path = RAW_DATA_DIR / ticker_filename(instrument.ticker)
     df.to_parquet(out_path)
 
     return IngestResult(
