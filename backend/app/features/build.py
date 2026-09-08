@@ -111,14 +111,19 @@ def build_features_for_universe(instruments: list[Instrument] = UNIVERSE) -> Non
     for instrument in instruments:
         in_path = PROCESSED_DATA_DIR / ticker_filename(instrument.ticker)
         df = pd.read_parquet(in_path)
+        # Cross-asset features are computed uniformly for every instrument,
+        # including the reference instruments themselves (beta(x,x)=1,
+        # corr(x,x)=1, excess_return(x,x)=0 are the mathematically exact
+        # self-comparison values, not fabricated ones). Earlier this
+        # special-cased the reference tickers to skip these columns as
+        # "degenerate" — but that made those instruments' feature files
+        # have a different column set than everyone else's, which silently
+        # introduced NaN for their rows after Phase 4's pooled-panel
+        # concat (columns present elsewhere but absent here get filled
+        # with NaN by pandas). Uniform computation removes that class of
+        # bug entirely and is simpler than the special-casing it replaced.
         feature_df = build_features_for_instrument(
-            df,
-            # Skip a reference feature when the instrument *is* that
-            # reference — a beta-vs-itself or gold-return-of-gold column
-            # would be degenerate/redundant with its own single-asset features.
-            index_close=None if instrument.ticker == REFERENCE_INDEX_TICKER else reference_index,
-            gold_close=None if instrument.ticker == GOLD_TICKER else gold,
-            silver_close=None if instrument.ticker == SILVER_TICKER else silver,
+            df, index_close=reference_index, gold_close=gold, silver_close=silver
         )
         out_path = FEATURES_DATA_DIR / ticker_filename(instrument.ticker)
         feature_df.to_parquet(out_path)

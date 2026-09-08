@@ -8,6 +8,7 @@ RAW_DATA_DIR = _DATA_ROOT / "raw"
 PROCESSED_DATA_DIR = _DATA_ROOT / "processed"
 FEATURES_DATA_DIR = _DATA_ROOT / "features"
 LABELS_DATA_DIR = _DATA_ROOT / "labels"
+RESULTS_DATA_DIR = _DATA_ROOT / "results"
 
 
 def ticker_filename(ticker: str) -> str:

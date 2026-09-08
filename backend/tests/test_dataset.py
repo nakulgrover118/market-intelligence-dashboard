@@ -86,6 +86,28 @@ def test_rows_with_nan_features_are_dropped(tmp_path, monkeypatch, instrument):
     assert panel["rsi_14"].notna().all()
 
 
+def test_raises_when_instruments_have_inconsistent_columns(tmp_path, monkeypatch):
+    instrument_a = Instrument("A.NS", "A Co", AssetClass.STOCK, "IT")
+    instrument_b = Instrument("B.NS", "B Co", AssetClass.STOCK, "Banking")
+
+    monkeypatch.setattr(dataset, "FEATURES_DATA_DIR", tmp_path / "features")
+    monkeypatch.setattr(dataset, "LABELS_DATA_DIR", tmp_path / "labels")
+    (tmp_path / "features").mkdir(exist_ok=True)
+    (tmp_path / "labels").mkdir(exist_ok=True)
+
+    feature_df_a, label_df_a = _sample_data(with_silver=False)
+    feature_df_a.to_parquet((tmp_path / "features") / "A.NS.parquet")
+    label_df_a.to_parquet((tmp_path / "labels") / "A.NS.parquet")
+
+    feature_df_b, label_df_b = _sample_data(with_silver=False)
+    feature_df_b = feature_df_b.drop(columns=["rsi_14"])  # missing a column B's peers have
+    feature_df_b.to_parquet((tmp_path / "features") / "B.NS.parquet")
+    label_df_b.to_parquet((tmp_path / "labels") / "B.NS.parquet")
+
+    with pytest.raises(ValueError, match="inconsistent feature columns"):
+        dataset.load_modeling_dataset(horizon=5, instruments=[instrument_a, instrument_b])
+
+
 def test_pools_multiple_instruments(tmp_path, monkeypatch):
     instrument_a = Instrument("A.NS", "A Co", AssetClass.STOCK, "IT")
     instrument_b = Instrument("B.NS", "B Co", AssetClass.STOCK, "Banking")

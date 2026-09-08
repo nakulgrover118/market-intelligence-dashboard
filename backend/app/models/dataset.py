@@ -59,6 +59,20 @@ def load_modeling_dataset(
         merged["date"] = merged.index
         frames.append(merged.reset_index(drop=True))
 
+    # A per-instrument feature file with a different column set than the
+    # others would have pd.concat silently NaN-fill the gap for every row
+    # of the instrument lacking it — invisible until model fitting fails,
+    # far from the actual cause. Fail loudly here instead (see
+    # test_universe_output_has_identical_columns_across_all_instruments in
+    # test_build.py for the real bug this guards against).
+    column_sets = {tuple(sorted(f.columns)) for f in frames}
+    if len(column_sets) > 1:
+        raise ValueError(
+            f"Instruments have inconsistent feature columns ({len(column_sets)} distinct "
+            "column sets) — pooling them would silently NaN-fill the gaps. Check that "
+            "build_features_for_universe computes the same columns for every instrument."
+        )
+
     panel = pd.concat(frames, ignore_index=True)
     panel["label"] = panel["label"].astype(int)
     return panel.sort_values("date").reset_index(drop=True)

@@ -2,7 +2,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from app.features.build import build_features_for_instrument
+from app.data.universe import AssetClass, Instrument
+from app.features import build
+from app.features.build import build_features_for_instrument, build_features_for_universe
 
 
 @pytest.fixture
@@ -129,3 +131,49 @@ def test_full_pipeline_with_cross_asset_features_has_no_lookahead(
         silver_close.iloc[:truncate_at],
     )
     pd.testing.assert_frame_equal(full.iloc[:truncate_at], truncated)
+
+
+def test_universe_output_has_identical_columns_across_all_instruments(tmp_path, monkeypatch):
+    """Regression test: build_features_for_universe used to skip computing
+    cross-asset features for the reference instruments themselves (e.g. no
+    beta-vs-Nifty column for ^NSEI), which gave different instruments
+    different column sets. That was invisible until Phase 4 pooled all
+    instruments into one panel — pandas concat silently filled the missing
+    columns with NaN for whichever instrument lacked them, breaking model
+    fitting. Every instrument's feature file must have the same columns."""
+    monkeypatch.setattr(build, "PROCESSED_DATA_DIR", tmp_path / "processed")
+    monkeypatch.setattr(build, "FEATURES_DATA_DIR", tmp_path / "features")
+    (tmp_path / "processed").mkdir()
+
+    instruments = [
+        Instrument(build.REFERENCE_INDEX_TICKER, "Nifty 50", AssetClass.INDEX),
+        Instrument(build.GOLD_TICKER, "Gold ETF", AssetClass.COMMODITY),
+        Instrument(build.SILVER_TICKER, "Silver ETF", AssetClass.COMMODITY),
+        Instrument("STOCK.NS", "A Stock", AssetClass.STOCK, "IT"),
+    ]
+    rng = np.random.default_rng(3)
+    n = 300
+    dates = pd.date_range("2023-01-01", periods=n, freq="B", name="date")
+    for instrument in instruments:
+        close = 100 + np.cumsum(rng.normal(0.05, 1.0, n))
+        df = pd.DataFrame(
+            {
+                "open": close - 0.5, "high": close + 1.0, "low": close - 1.0,
+                "close": close, "adj_close": close, "adj_high": close + 1.0,
+                "adj_low": close - 1.0, "volume": rng.integers(1000, 5000, n).astype(float),
+            },
+            index=dates,
+        )
+        df.to_parquet(tmp_path / "processed" / f"{instrument.ticker.replace('^', 'IDX_')}.parquet")
+
+    build_features_for_universe(instruments=instruments)
+
+    column_sets = {
+        instrument.ticker: set(
+            pd.read_parquet(tmp_path / "features" / f"{instrument.ticker.replace('^', 'IDX_')}.parquet").columns
+        )
+        for instrument in instruments
+    }
+    first_ticker, first_columns = next(iter(column_sets.items()))
+    for ticker, columns in column_sets.items():
+        assert columns == first_columns, f"{ticker} has different columns than {first_ticker}"
