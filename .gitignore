@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Env / secrets
+.env
+*.env.local
+
+# Data (raw/cached market data should not live in git history)
+data/raw/
+data/processed/
+*.parquet
+*.db
+*.sqlite3
+
+# ML artifacts
+*.pkl
+*.joblib
+mlruns/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Notebook checkpoints
+.ipynb_checkpoints/
