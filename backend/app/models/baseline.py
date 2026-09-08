@@ -9,6 +9,7 @@ using data from the future relative to that fold's test period.
 """
 
 import logging
+from typing import Callable
 
 import numpy as np
 import pandas as pd
@@ -24,12 +25,13 @@ from app.models.evaluate import FoldMetrics, build_fold_metrics, summarize_folds
 
 logger = logging.getLogger(__name__)
 
-_NON_FEATURE_COLUMNS = {"ticker", "sector", "date", "label", "label_end_date"}
-_CATEGORICAL_COLUMNS = ["sector"]
+NON_FEATURE_COLUMNS = {"ticker", "sector", "date", "label", "label_end_date"}
+CATEGORICAL_COLUMNS = ["sector"]
+PipelineBuilder = Callable[[list[str]], Pipeline]
 
 
 def feature_columns(panel: pd.DataFrame) -> list[str]:
-    return [c for c in panel.columns if c not in _NON_FEATURE_COLUMNS]
+    return [c for c in panel.columns if c not in NON_FEATURE_COLUMNS]
 
 
 def build_pipeline(numeric_columns: list[str]) -> Pipeline:
@@ -42,22 +44,28 @@ def build_pipeline(numeric_columns: list[str]) -> Pipeline:
     preprocessor = ColumnTransformer(
         [
             ("numeric", StandardScaler(), numeric_columns),
-            ("sector", OneHotEncoder(handle_unknown="ignore"), _CATEGORICAL_COLUMNS),
+            ("sector", OneHotEncoder(handle_unknown="ignore"), CATEGORICAL_COLUMNS),
         ]
     )
     return Pipeline([("preprocess", preprocessor), ("model", LogisticRegression(max_iter=1000))])
 
 
-def run_walk_forward_evaluation(panel: pd.DataFrame, folds: list[Fold]) -> list[FoldMetrics]:
+def run_walk_forward_evaluation(
+    panel: pd.DataFrame, folds: list[Fold], pipeline_builder: PipelineBuilder = build_pipeline
+) -> list[FoldMetrics]:
+    """`pipeline_builder` is pluggable so the exact same walk-forward
+    protocol (same folds, same preprocessing shape, same metrics) can be
+    reused to compare model types fairly — see app/models/diagnostics.py,
+    which reuses this to test a nonlinear model against this baseline."""
     numeric_columns = feature_columns(panel)
     results = []
     for fold in folds:
         train = panel.loc[fold.train_idx]
         test = panel.loc[fold.test_idx]
 
-        pipeline = build_pipeline(numeric_columns)
-        pipeline.fit(train[numeric_columns + _CATEGORICAL_COLUMNS], train["label"])
-        y_prob = pipeline.predict_proba(test[numeric_columns + _CATEGORICAL_COLUMNS])[:, 1]
+        pipeline = pipeline_builder(numeric_columns)
+        pipeline.fit(train[numeric_columns + CATEGORICAL_COLUMNS], train["label"])
+        y_prob = pipeline.predict_proba(test[numeric_columns + CATEGORICAL_COLUMNS])[:, 1]
 
         fm = build_fold_metrics(fold.name, train["label"].to_numpy(), test["label"].to_numpy(), y_prob)
         results.append(fm)

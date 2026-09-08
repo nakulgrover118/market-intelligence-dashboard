@@ -26,7 +26,14 @@ logger = logging.getLogger(__name__)
 
 HORIZONS = (5, 20)
 DAILY_VOL_WINDOW = 20  # matches app.features.build's realized_vol_20d
-DEFAULT_K = 0.5  # empirically selected — see docs/roadmap.md's methodology log
+# Revised from an initial k=0.5 after Phase 4c's diagnostic detour showed
+# k=0.5 (~33% positive rate, well-balanced) carried essentially no real
+# signal (ROC-AUC ~0.53-0.55, near-random) for either model tried, while
+# k=1.5 (~9-10% positive rate, more imbalanced) showed a real, consistent
+# ROC-AUC of ~0.61-0.62 across both horizons. Predictability turned out to
+# live in larger, less noise-dominated moves, not small ones — see
+# docs/roadmap.md's methodology log for the full investigation.
+DEFAULT_K = 1.5
 
 
 def forward_log_return(close: pd.Series, horizon: int) -> pd.Series:
