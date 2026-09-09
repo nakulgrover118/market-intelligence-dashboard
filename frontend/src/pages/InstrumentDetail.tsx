@@ -68,27 +68,63 @@ export function InstrumentDetail() {
             </p>
           </header>
 
-          <div
-            style={{
-              background: "var(--surface-card)",
-              border: "1px solid var(--border)",
-              borderRadius: 10,
-              padding: 20,
-              marginBottom: 24,
-            }}
-          >
-            <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
-              P(move {">"}1.5&sigma; over next {detail.horizon} trading days)
+          <div style={{ display: "flex", gap: 16, marginBottom: 8, flexWrap: "wrap" }}>
+            <div
+              style={{
+                flex: "1 1 220px",
+                background: "var(--surface-card)",
+                border: "1px solid var(--border)",
+                borderLeft: "3px solid var(--series-red)",
+                borderRadius: 10,
+                padding: 20,
+              }}
+            >
+              <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+                P(move down {">"}1.5&sigma;, next {detail.horizon}d)
+              </div>
+              <div
+                style={{
+                  fontSize: 36,
+                  fontWeight: 700,
+                  fontVariantNumeric: "tabular-nums",
+                  color: "var(--series-red)",
+                }}
+              >
+                {(detail.down_probability * 100).toFixed(1)}%
+              </div>
             </div>
-            <div style={{ fontSize: 40, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
-              {(detail.probability * 100).toFixed(1)}%
-            </div>
-            <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-              As of {detail.as_of_date.slice(0, 10)}
+            <div
+              style={{
+                flex: "1 1 220px",
+                background: "var(--surface-card)",
+                border: "1px solid var(--border)",
+                borderLeft: "3px solid var(--series-blue)",
+                borderRadius: 10,
+                padding: 20,
+              }}
+            >
+              <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+                P(move up {">"}1.5&sigma;, next {detail.horizon}d)
+              </div>
+              <div
+                style={{
+                  fontSize: 36,
+                  fontWeight: 700,
+                  fontVariantNumeric: "tabular-nums",
+                  color: "var(--series-blue)",
+                }}
+              >
+                {(detail.up_probability * 100).toFixed(1)}%
+              </div>
             </div>
           </div>
+          <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 24 }}>
+            As of {detail.as_of_date.slice(0, 10)}. These are two independent models — both can be elevated
+            at once (a calm market lowers the bar for a big move in either direction; see the methodology
+            page), so a wide gap between them is a more meaningful "lean" than either number alone.
+          </div>
 
-          <h2 style={{ fontSize: 16, marginBottom: 4 }}>Why this probability</h2>
+          <h2 style={{ fontSize: 16, marginBottom: 4, color: "var(--series-blue)" }}>Why the up-move probability</h2>
           <p style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 0 }}>
             The features that pushed this prediction up or down the most, per{" "}
             <a href="https://shap.readthedocs.io/" target="_blank" rel="noreferrer">
@@ -97,7 +133,15 @@ export function InstrumentDetail() {
             attribution. See the methodology page for an important caveat: a meaningful part of this
             model's edge reflects current-volatility regime detection, not pure directional signal.
           </p>
-          <ShapChart features={detail.top_features} />
+          <ShapChart features={detail.up_top_features} />
+
+          <h2 style={{ fontSize: 16, marginBottom: 4, marginTop: 32, color: "var(--series-red)" }}>
+            Why the down-move probability
+          </h2>
+          <p style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 0 }}>
+            The independent downside model's own SHAP attribution — not derived from the up-model above.
+          </p>
+          <ShapChart features={detail.down_top_features} />
         </>
       )}
     </div>

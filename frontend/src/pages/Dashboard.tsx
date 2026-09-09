@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getLatestPredictions } from "../api/client";
 import type { Horizon, Prediction } from "../api/types";
-import { ProbabilityBar } from "../components/ProbabilityBar";
+import { DirectionBar } from "../components/DirectionBar";
 
 const HORIZONS: Horizon[] = [5, 20];
 
@@ -33,9 +33,10 @@ export function Dashboard() {
       <header style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 24, marginBottom: 4 }}>Market Intelligence Dashboard</h1>
         <p style={{ color: "var(--text-secondary)", fontSize: 14, margin: 0 }}>
-          Calibrated probability of a large ({">"}1.5&sigma;-scaled) move over the next {horizon} trading
-          days, for NSE stocks, indices, and gold/silver ETF proxies. Probabilities, not BUY/SELL signals —
-          see the methodology page for what this does and doesn't mean.
+          Two independent probabilities — a large ({">"}1.5&sigma;-scaled) move up, and a large move down —
+          over the next {horizon} trading days, for NSE stocks, indices, and gold/silver ETF proxies. Both
+          numbers can be elevated at once (a calm market makes a big move easier in <em>either</em> direction
+          — see the methodology page). These are probabilities, not BUY/SELL signals.
         </p>
       </header>
 
@@ -68,7 +69,7 @@ export function Dashboard() {
             <tr style={{ textAlign: "left", borderBottom: "1px solid var(--gridline)" }}>
               <th style={headerStyle}>Instrument</th>
               <th style={headerStyle}>Sector</th>
-              <th style={headerStyle}>Probability</th>
+              <th style={headerStyle}>Down / Up probability</th>
               <th style={headerStyle}>As of</th>
             </tr>
           </thead>
@@ -87,7 +88,7 @@ export function Dashboard() {
                 </td>
                 <td style={{ ...cellStyle, color: "var(--text-secondary)" }}>{row.sector ?? "—"}</td>
                 <td style={cellStyle}>
-                  <ProbabilityBar probability={row.probability} />
+                  <DirectionBar upProbability={row.up_probability} downProbability={row.down_probability} />
                 </td>
                 <td style={{ ...cellStyle, color: "var(--text-muted)", fontSize: 12 }}>
                   {row.as_of_date.slice(0, 10)}

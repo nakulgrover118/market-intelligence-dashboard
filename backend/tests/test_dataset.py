@@ -32,6 +32,11 @@ def _sample_data(n=10, with_silver=True, with_nan=False):
     label_df = pd.DataFrame(
         {
             "label_5d": [1, 0] * (n // 2),
+            # Deliberately the exact complement of label_5d in this fixture
+            # (real data wouldn't be, but mutual exclusivity is already
+            # covered by test_labels.py — here we just need a distinct,
+            # recognizable column so tests can tell which one got picked).
+            "label_down_5d": [0, 1] * (n // 2),
             "label_end_date_5d": dates + pd.Timedelta(days=5),
             "forward_return_5d": np.linspace(-0.02, 0.03, n),
         },
@@ -56,6 +61,52 @@ def test_basic_columns_and_metadata(tmp_path, monkeypatch, instrument):
     assert (panel["ticker"] == "TEST.NS").all()
     assert (panel["sector"] == "IT").all()
     assert panel["label"].dtype == np.int64 or panel["label"].dtype == int
+
+
+def test_direction_defaults_to_up(tmp_path, monkeypatch, instrument):
+    feature_df, label_df = _sample_data()
+    _write_instrument(tmp_path, monkeypatch, instrument.ticker, feature_df, label_df)
+
+    panel = dataset.load_modeling_dataset(horizon=5, instruments=[instrument])
+
+    assert list(panel["label"]) == list(label_df["label_5d"])
+
+
+def test_direction_up_explicit_matches_default(tmp_path, monkeypatch, instrument):
+    feature_df, label_df = _sample_data()
+    _write_instrument(tmp_path, monkeypatch, instrument.ticker, feature_df, label_df)
+
+    panel = dataset.load_modeling_dataset(horizon=5, instruments=[instrument], direction="up")
+
+    assert list(panel["label"]) == list(label_df["label_5d"])
+
+
+def test_direction_down_uses_label_down_column(tmp_path, monkeypatch, instrument):
+    feature_df, label_df = _sample_data()
+    _write_instrument(tmp_path, monkeypatch, instrument.ticker, feature_df, label_df)
+
+    panel = dataset.load_modeling_dataset(horizon=5, instruments=[instrument], direction="down")
+
+    assert list(panel["label"]) == list(label_df["label_down_5d"])
+    # And not silently identical to the "up" panel — these are genuinely
+    # different columns in this fixture, so a bug that always picked
+    # label_5d regardless of `direction` would be caught here.
+    assert list(panel["label"]) != list(label_df["label_5d"])
+
+
+def test_direction_up_and_down_share_label_end_date(tmp_path, monkeypatch, instrument):
+    feature_df, label_df = _sample_data()
+    _write_instrument(tmp_path, monkeypatch, instrument.ticker, feature_df, label_df)
+
+    up_panel = dataset.load_modeling_dataset(horizon=5, instruments=[instrument], direction="up")
+    down_panel = dataset.load_modeling_dataset(horizon=5, instruments=[instrument], direction="down")
+
+    assert list(up_panel["label_end_date"]) == list(down_panel["label_end_date"])
+
+
+def test_invalid_direction_raises():
+    with pytest.raises(ValueError, match="direction must be 'up' or 'down'"):
+        dataset._label_column_name(horizon=5, direction="sideways")
 
 
 def test_silver_features_excluded_by_default(tmp_path, monkeypatch, instrument):

@@ -2,13 +2,15 @@
 
 React + TypeScript + Vite frontend for the [backend API](../backend), consuming
 `/instruments`, `/predictions/latest`, and `/predictions/{ticker}` to show
-calibrated move-probabilities and their SHAP explanations. See
+two independent, calibrated move-probabilities per instrument — up and
+down — with their SHAP explanations. See
 [../docs/roadmap.md](../docs/roadmap.md) for the full project methodology.
 
 ## Running locally
 
 Requires the backend running first (`cd ../backend && uvicorn app.main:app`,
-plus persisted models — see the backend README/`app/models/persist.py`).
+plus persisted models for both directions — see the backend README/
+`app/models/persist.py`).
 
 ```bash
 npm install
@@ -24,17 +26,28 @@ if the backend isn't on `http://127.0.0.1:8000`.
 ```
 src/
   api/          fetch client + TypeScript types mirroring the backend's Pydantic schemas
-  components/   ProbabilityBar (magnitude indicator), ShapChart (diverging contribution chart)
-  pages/        Dashboard (instrument list), InstrumentDetail (probability + explanation)
+  components/   DirectionBar (diverging up/down probability bar), ShapChart (diverging contribution chart)
+  pages/        Dashboard (instrument list), InstrumentDetail (both probabilities + both explanations)
   theme.css     Colors — the dataviz skill's validated reference palette (light/dark)
 ```
 
 ## Design notes
 
-- Probability is a magnitude → sequential blue ramp. SHAP contribution is a
-  polarity (pushes probability up vs down) → the diverging blue/red pair.
-  These are different color jobs on purpose, not a stylistic choice.
-- The probability bar's visual scale caps at 30%, not 100%: predicted
-  probabilities empirically cluster between ~3% and ~20% (see the reliability
-  diagrams in `../docs/roadmap.md`), so a 0-100% scale would make every bar
-  look nearly empty.
+- **Why two probabilities, not one**: the backend serves independent "up" and
+  "down" models (see `docs/roadmap.md`) — a single upside-only number can't
+  honestly be read as bullish/bearish, since a low value could mean "calm" just
+  as easily as "expect a drop." Both are shown together, always, never reduced
+  to "whichever is bigger."
+- **Direction is a polarity → diverging color, not a magnitude → sequential
+  ramp.** `DirectionBar` (up vs down) and `ShapChart` (pushes probability up vs
+  down) both use the same diverging blue/red pair for this reason — it's a
+  color *job*, not a stylistic choice.
+- Both probabilities can be elevated **simultaneously**: a calm market (low
+  current volatility) lowers the bar for a big move in *either* direction
+  (see `docs/roadmap.md`'s Phase 7/8 findings). `DirectionBar`'s derived
+  "lean" label is based on the *spread* between up and down, not on which
+  number is larger, precisely because of this.
+- The bar's visual scale caps at 30%, not 100%: predicted probabilities
+  empirically cluster between ~3% and ~20% (see the reliability diagrams in
+  `../docs/roadmap.md`), so a 0-100% scale would make every bar look nearly
+  empty.

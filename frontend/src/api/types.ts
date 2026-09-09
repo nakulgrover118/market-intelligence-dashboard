@@ -10,7 +10,8 @@ export interface Prediction {
   name: string;
   sector: string | null;
   horizon: number;
-  probability: number;
+  up_probability: number;
+  down_probability: number;
   as_of_date: string;
 }
 
@@ -21,7 +22,8 @@ export interface FeatureContribution {
 }
 
 export interface PredictionDetail extends Prediction {
-  top_features: FeatureContribution[];
+  up_top_features: FeatureContribution[];
+  down_top_features: FeatureContribution[];
 }
 
 export type Horizon = 5 | 20;

@@ -8,20 +8,22 @@ class InstrumentOut(BaseModel):
     asset_class: str
 
 
-class PredictionOut(BaseModel):
-    ticker: str
-    name: str
-    sector: str | None
-    horizon: int
-    probability: float
-    as_of_date: str
-
-
 class FeatureContribution(BaseModel):
     feature: str
     feature_value: float
     shap_value: float
 
 
+class PredictionOut(BaseModel):
+    ticker: str
+    name: str
+    sector: str | None
+    horizon: int
+    up_probability: float
+    down_probability: float
+    as_of_date: str
+
+
 class PredictionDetailOut(PredictionOut):
-    top_features: list[FeatureContribution]
+    up_top_features: list[FeatureContribution]
+    down_top_features: list[FeatureContribution]

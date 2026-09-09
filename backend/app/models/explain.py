@@ -27,13 +27,19 @@ from app.models.gbm import build_lgbm_pipeline, tune_lgbm_hyperparameters
 logger = logging.getLogger(__name__)
 
 
-def fit_final_model(horizon: int, dev_initial_train_end: str, dev_cutoff: str) -> tuple[Pipeline, pd.DataFrame]:
+def fit_final_model(
+    horizon: int, dev_initial_train_end: str, dev_cutoff: str, direction: str = "up"
+) -> tuple[Pipeline, pd.DataFrame]:
     """Tunes hyperparameters the same way Phase 5 did (on an isolated
     pre-2014 dev split, never touching the data this final model is fit
     on), then fits one pipeline on the *entire* available panel. This is
     deliberately not walk-forward evaluated — it's the production model,
-    not a methodology check."""
-    panel = load_modeling_dataset(horizon=horizon)
+    not a methodology check. `direction="down"` fits the symmetric
+    downside model instead (see docs/roadmap.md for why one-sided
+    upside-only probabilities can't honestly support a bullish/bearish
+    read — the fix was building this real second model, not relabeling
+    the first one)."""
+    panel = load_modeling_dataset(horizon=horizon, direction=direction)
     best_params = tune_lgbm_hyperparameters(panel, dev_initial_train_end, dev_cutoff)
 
     numeric_columns = feature_columns(panel)

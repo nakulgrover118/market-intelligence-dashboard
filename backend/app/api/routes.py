@@ -32,8 +32,8 @@ def latest_predictions(horizon: int = 5) -> list[PredictionOut]:
     try:
         results = []
         for instrument in UNIVERSE:
-            prediction = registry.predict_and_explain(horizon, instrument.ticker, include_explanation=False)
-            if prediction is None:
+            both = registry.predict_both_directions(horizon, instrument.ticker, include_explanation=False)
+            if both is None:
                 continue
             results.append(
                 PredictionOut(
@@ -41,14 +41,18 @@ def latest_predictions(horizon: int = 5) -> list[PredictionOut]:
                     name=instrument.name,
                     sector=instrument.sector,
                     horizon=horizon,
-                    probability=prediction["probability"],
-                    as_of_date=prediction["as_of_date"],
+                    up_probability=both["up"]["probability"],
+                    down_probability=both["down"]["probability"],
+                    as_of_date=both["up"]["as_of_date"],
                 )
             )
     except ModelNotAvailableError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    results.sort(key=lambda r: r.probability, reverse=True)
+    # Sorted by the larger of the two directional probabilities — "most
+    # noteworthy prediction first" regardless of which way it leans, since
+    # neither direction is inherently more important than the other.
+    results.sort(key=lambda r: max(r.up_probability, r.down_probability), reverse=True)
     return results
 
 
@@ -61,11 +65,11 @@ def prediction_detail(ticker: str, horizon: int = 5) -> PredictionDetailOut:
 
     registry = get_registry()
     try:
-        result = registry.predict_and_explain(horizon, ticker, include_explanation=True, top_n=10)
+        both = registry.predict_both_directions(horizon, ticker, include_explanation=True, top_n=10)
     except ModelNotAvailableError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    if result is None:
+    if both is None:
         raise HTTPException(status_code=404, detail=f"No feature data available yet for {ticker}")
 
     return PredictionDetailOut(
@@ -73,7 +77,9 @@ def prediction_detail(ticker: str, horizon: int = 5) -> PredictionDetailOut:
         name=instrument.name,
         sector=instrument.sector,
         horizon=horizon,
-        probability=result["probability"],
-        as_of_date=result["as_of_date"],
-        top_features=result["top_features"],
+        up_probability=both["up"]["probability"],
+        down_probability=both["down"]["probability"],
+        as_of_date=both["up"]["as_of_date"],
+        up_top_features=both["up"]["top_features"],
+        down_top_features=both["down"]["top_features"],
     )
