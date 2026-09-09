@@ -21,7 +21,16 @@ honestly. The full decision log and findings live in
 |---|---|---|---|---|
 | Naive (predict the historical base rate) | 0.500 | 0.0804 | 0.500 | 0.0924 |
 | Logistic regression | 0.610 | 0.0811 | 0.618 | 0.0948 |
-| **Tuned LightGBM** | **0.624** | **0.0796** | **0.640** | 0.0925 |
+| **Tuned LightGBM (up)** | **0.624** | **0.0796** | **0.640** | 0.0925 |
+| Tuned LightGBM (down) | 0.611 | 0.0658 | 0.612 | 0.0653 |
+
+The dashboard trains and serves **two independent models per horizon** —
+`P(move up)` and `P(move down)`, off the same symmetric volatility
+threshold — not one model relabeled two ways. That distinction turned out to
+matter: per-instrument positive rates are consistently higher on the up side
+than the down side (e.g. `TCS.NS` at 5d: 9.3% up vs. 7.0% down), a real,
+expected consequence of applying a symmetric threshold to assets with
+positive long-run drift, not a labeling bug (Phase 12, `docs/roadmap.md`).
 
 Tuned LightGBM is the first model in the project to actually beat the naive
 baseline on Brier score, not just on ranking. Getting there required two
@@ -73,6 +82,7 @@ serves from artifacts persisted by an offline pipeline (see
 - **Every finding is a real, run finding**, not a projection: two real data bugs were found and fixed (Tata Motors' 2025 demerger breaking a ticker; a listed ETF with a year of vendor placeholder data), and one structural bug in the modeling pipeline was caught by an unexpectedly low warm-up rate before it silently corrupted training data.
 - **Calibration was checked, not assumed**: Platt scaling and isotonic regression were fit and evaluated properly — and found not to help, a result reported as-is rather than forced into a positive story.
 - **The decision-value backtest is scoped as research, not a product feature**: framed explicitly as illustrative due-diligence ("would acting on this probability have survived transaction costs"), consistent with the project's stated goal of probabilities over signals.
+- **A single upside probability can't honestly answer "bullish or bearish?"** — a low value could mean "calm market" just as easily as "expect a drop." The fix, once real user feedback surfaced this, was a genuine second model (`P(forward return <= -threshold)`), not a relabel of the existing one. Both are always shown together in the UI, with a spread-based "lean" label rather than "whichever number is bigger" — because the two can be simultaneously elevated (confirmed live: `HDFCBANK.NS` showed up=16.6% / down=12.9% at once, both driven by the same low realized-volatility reading, which is the same volatility-regime effect Phase 7 found for the upside model alone).
 
 Full write-up, including exact numbers for every claim above, is in
 [`docs/roadmap.md`](docs/roadmap.md).
@@ -84,7 +94,7 @@ Full write-up, including exact numbers for every claim above, is in
 cd backend
 python -m venv .venv && .venv/Scripts/activate  # or source .venv/bin/activate on macOS/Linux
 pip install -e ".[dev]"
-pytest                              # 130+ tests, all against synthetic/mocked data
+pytest                              # 143 tests, all against synthetic/mocked data
 python -m app.data.ingest           # fetch raw data (needs network) — see docs/deployment.md for the full pipeline
 python -m app.data.clean
 python -m app.features.build
@@ -111,7 +121,7 @@ backend/        FastAPI service — data pipeline, features, models, API
   app/models/     dataset assembly, CV, baseline/GBM models, calibration, SHAP, backtest
   app/api/        FastAPI routes + schemas
   app/services/   model registry (persisted-artifact serving)
-  tests/          130+ tests, no network/data dependency
+  tests/          143 tests, no network/data dependency
 frontend/       React + TypeScript (Vite) dashboard
 docs/
   roadmap.md      full phase-by-phase methodology log and findings — the real story
@@ -125,8 +135,10 @@ Python 3.11, pandas, scikit-learn, LightGBM, SHAP, FastAPI · React, TypeScript,
 
 ## Status
 
-All 11 phases of the original roadmap are complete: data pipeline, features,
-labeling, baseline + tuned models, calibration, explainability, backtesting,
-API, frontend, and CI/deployment docs. See
+All 12 phases are complete: data pipeline, features, labeling, baseline +
+tuned models, calibration, explainability, backtesting, API, frontend,
+CI/deployment docs, and — following real user feedback that a single
+upside-only probability read as ambiguous — a genuinely independent downside
+(bearish) model shown alongside the upside one. See
 [`docs/roadmap.md`](docs/roadmap.md) for the complete, phase-by-phase build
 log.
