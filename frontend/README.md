@@ -1,6 +1,8 @@
 # Market Intelligence Dashboard — Frontend
 
-React + TypeScript + Vite frontend for the [backend API](../backend), consuming
+Part of [Market & Commodities Intelligence Dashboard](https://github.com/nakulgrover118/market-intelligence-dashboard)
+([top-level README](../README.md)) — React + TypeScript + Vite frontend for
+the [backend API](../backend), consuming
 `/instruments`, `/predictions/latest`, and `/predictions/{ticker}` to show
 two independent, calibrated move-probabilities per instrument — up and
 down — with their SHAP explanations. See
@@ -44,9 +46,12 @@ src/
   color *job*, not a stylistic choice.
 - Both probabilities can be elevated **simultaneously**: a calm market (low
   current volatility) lowers the bar for a big move in *either* direction
-  (see `docs/roadmap.md`'s Phase 7/8 findings). `DirectionBar`'s derived
-  "lean" label is based on the *spread* between up and down, not on which
-  number is larger, precisely because of this.
+  (see `docs/roadmap.md`'s Phase 7/8/12 findings) — confirmed live, not just
+  in theory: `HDFCBANK.NS` at the 5-day horizon shows up=16.6% and
+  down=12.9% *at once*, both driven by the same low `realized_vol_20d`
+  reading. `DirectionBar`'s derived "lean" label is based on the *spread*
+  between up and down, not on which number is larger, precisely because of
+  this.
 - The bar's visual scale caps at 30%, not 100%: predicted probabilities
   empirically cluster between ~3% and ~20% (see the reliability diagrams in
   `../docs/roadmap.md`), so a 0-100% scale would make every bar look nearly
