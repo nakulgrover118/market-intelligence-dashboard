@@ -30,20 +30,33 @@ def feature_columns_for_frame(feature_df: pd.DataFrame, include_silver_features:
     return [c for c in feature_df.columns if _SILVER_FEATURE_MARKER not in c]
 
 
+def _label_column_name(horizon: int, direction: str) -> str:
+    if direction == "up":
+        return f"label_{horizon}d"
+    if direction == "down":
+        return f"label_down_{horizon}d"
+    raise ValueError(f"direction must be 'up' or 'down', got {direction!r}")
+
+
 def assemble_panel(
     instruments: list[Instrument],
     horizon: int,
     load_label_df: Callable[[Instrument], pd.DataFrame],
     include_silver_features: bool = False,
+    direction: str = "up",
 ) -> pd.DataFrame:
     """Shared core: joins each instrument's features against whatever
     `load_label_df` returns for it, and pools the result into one panel.
     `load_label_df` is pluggable so this same, guarded assembly logic can
-    back both the persisted (k=0.5) labels in load_modeling_dataset below
-    and the on-the-fly, alternate-k labels used in Phase 4c's diagnostic
-    detour (app/models/diagnostics.py) — without duplicating the NaN
-    policy or the column-consistency guard in two places."""
-    label_col = f"label_{horizon}d"
+    back both the persisted labels in load_modeling_dataset below and the
+    on-the-fly, alternate-k labels used in Phase 4c's diagnostic detour
+    (app/models/diagnostics.py) — without duplicating the NaN policy or
+    the column-consistency guard in two places. `direction` picks which
+    label ("up" -> label_{n}d, "down" -> label_down_{n}d) becomes the
+    panel's `label` column — both share the same `label_end_date` (the
+    date column is direction-independent, only the threshold comparison
+    differs)."""
+    label_col = _label_column_name(horizon, direction)
     end_date_col = f"label_end_date_{horizon}d"
 
     frames = []
@@ -86,16 +99,20 @@ def load_modeling_dataset(
     horizon: int,
     instruments: list[Instrument] = UNIVERSE,
     include_silver_features: bool = False,
+    direction: str = "up",
 ) -> pd.DataFrame:
     """One row per (ticker, date) with feature columns, `label`,
     `label_end_date`, `ticker`, `sector`, and `date`, using the persisted
-    (k=0.5) labels from Phase 3. Rows with any missing feature, an
-    infinite feature value, or an undefined label are dropped here — this
-    is the modeling-stage NaN policy referenced throughout Phase 2/3
-    (upstream layers only flag issues; this is where we finally act on
-    them by exclusion)."""
+    (k=1.5) labels from Phase 3/4d. `direction="up"` targets a big upward
+    move, `"down"` a big downward move — both are legitimate, independent
+    models sharing the same features and the same volatility-scaled
+    threshold magnitude (see docs/roadmap.md). Rows with any missing
+    feature, an infinite feature value, or an undefined label are dropped
+    here — this is the modeling-stage NaN policy referenced throughout
+    Phase 2/3 (upstream layers only flag issues; this is where we finally
+    act on them by exclusion)."""
 
     def _load_persisted_labels(instrument: Instrument) -> pd.DataFrame:
         return pd.read_parquet(LABELS_DATA_DIR / ticker_filename(instrument.ticker))
 
-    return assemble_panel(instruments, horizon, _load_persisted_labels, include_silver_features)
+    return assemble_panel(instruments, horizon, _load_persisted_labels, include_silver_features, direction)

@@ -73,8 +73,8 @@ def load_modeling_dataset_with_k(
 ) -> pd.DataFrame:
     """Same shape/contract as app.models.dataset.load_modeling_dataset, but
     computes labels on the fly for an arbitrary k instead of reading the
-    persisted (k=0.5) label files — lets us explore alternate thresholds
-    without touching the committed Phase 3 label data or its k=0.5 results.
+    persisted (k=1.5) label files — lets us explore alternate thresholds
+    without touching the committed Phase 3 label data or its results.
     Reuses assemble_panel so the NaN policy and column-consistency guard
     aren't duplicated here."""
 

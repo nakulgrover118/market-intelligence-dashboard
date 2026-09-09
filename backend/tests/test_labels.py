@@ -84,7 +84,7 @@ def test_label_end_date_all_nat_when_horizon_exceeds_length():
 def test_build_labels_basic_shape(close, daily_vol):
     df = labels.build_labels_for_instrument(close, daily_vol, k=1.0)
     for n in labels.HORIZONS:
-        for prefix in ["forward_return", "label_threshold", "label", "label_end_date"]:
+        for prefix in ["forward_return", "label_threshold", "label", "label_down", "label_end_date"]:
             assert f"{prefix}_{n}d" in df.columns
 
 
@@ -96,7 +96,27 @@ def test_label_is_one_iff_forward_return_meets_threshold(close, daily_vol):
     pd.testing.assert_series_equal(actual, expected, check_names=False)
 
 
+def test_label_down_is_one_iff_forward_return_meets_negative_threshold(close, daily_vol):
+    df = labels.build_labels_for_instrument(close, daily_vol, k=1.0)
+    valid = df.dropna(subset=["forward_return_5d", "label_threshold_5d"])
+    expected = valid["forward_return_5d"] <= -valid["label_threshold_5d"]
+    actual = valid["label_down_5d"].astype(bool)
+    pd.testing.assert_series_equal(actual, expected, check_names=False)
+
+
+def test_label_and_label_down_are_never_both_true(close, daily_vol):
+    """A row can be a big up move or a big down move, never both — the
+    thresholds are symmetric and non-overlapping (a positive threshold
+    can't also be satisfied by <= its negation, since threshold > 0
+    whenever volatility > 0)."""
+    df = labels.build_labels_for_instrument(close, daily_vol, k=1.0)
+    valid = df.dropna(subset=["label_5d", "label_down_5d"])
+    both_true = valid["label_5d"].astype(bool) & valid["label_down_5d"].astype(bool)
+    assert not both_true.any()
+
+
 def test_label_is_na_when_forward_return_undefined(close, daily_vol):
     df = labels.build_labels_for_instrument(close, daily_vol, k=1.0)
     tail = df.iloc[-5:]
     assert tail["label_5d"].isna().all()
+    assert tail["label_down_5d"].isna().all()

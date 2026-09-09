@@ -65,18 +65,23 @@ def label_end_date(index: pd.DatetimeIndex, horizon: int) -> pd.Series:
 def build_labels_for_instrument(
     close: pd.Series, daily_vol: pd.Series, k: float, horizons: tuple[int, ...] = HORIZONS
 ) -> pd.DataFrame:
+    """Builds both directions off the same symmetric threshold: `label_{n}d`
+    (upside, forward_return >= +threshold) and `label_down_{n}d` (downside,
+    forward_return <= -threshold). These are not complementary (most rows
+    are neither a big up move nor a big down move) — a row can only ever
+    have at most one of the two equal to 1, and typically both are 0."""
     columns: dict[str, pd.Series] = {}
     for n in horizons:
         fwd_ret = forward_log_return(close, n)
         threshold = volatility_threshold(daily_vol, n, k)
+        undefined = fwd_ret.isna() | threshold.isna()
+
         columns[f"forward_return_{n}d"] = fwd_ret
         columns[f"label_threshold_{n}d"] = threshold
-        columns[f"label_{n}d"] = (fwd_ret >= threshold).astype("Int64")
-        # A label needs both the forward return AND the threshold to be
-        # defined; mask out rows where either is NaN rather than letting a
-        # NaN threshold silently compare as False.
-        undefined = fwd_ret.isna() | threshold.isna()
-        columns[f"label_{n}d"] = columns[f"label_{n}d"].mask(undefined, pd.NA)
+
+        columns[f"label_{n}d"] = (fwd_ret >= threshold).astype("Int64").mask(undefined, pd.NA)
+        columns[f"label_down_{n}d"] = (fwd_ret <= -threshold).astype("Int64").mask(undefined, pd.NA)
+
         columns[f"label_end_date_{n}d"] = label_end_date(close.index, n)
     return pd.DataFrame(columns, index=close.index)
 
@@ -92,9 +97,11 @@ def build_labels_for_universe(instruments: list[Instrument] = UNIVERSE, k: float
 
         rates = []
         for n in HORIZONS:
-            valid = label_df[f"label_{n}d"].dropna()
-            rate = valid.astype(bool).mean() if len(valid) else float("nan")
-            rates.append(f"{n}d: {rate:.1%} of {len(valid)}")
+            up_valid = label_df[f"label_{n}d"].dropna()
+            down_valid = label_df[f"label_down_{n}d"].dropna()
+            up_rate = up_valid.astype(bool).mean() if len(up_valid) else float("nan")
+            down_rate = down_valid.astype(bool).mean() if len(down_valid) else float("nan")
+            rates.append(f"{n}d: up {up_rate:.1%} / down {down_rate:.1%} of {len(up_valid)}")
         logger.info("%s: %s", instrument.ticker, "; ".join(rates))
 
 
