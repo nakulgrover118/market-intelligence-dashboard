@@ -1,0 +1,22 @@
+# Render Blueprint for the free-tier public demo backend.
+# See docs/deployment.md for what this deliberately simplifies relative
+# to the project's documented production deployment pattern (mounted,
+# refreshable data volume) and why: no persistent disk on Render's free
+# plan, and no scheduled data refresh in this project to begin with.
+#
+# Usage: in the Render dashboard, New -> Blueprint -> connect this repo.
+# Render finds this file automatically. After the first deploy, update
+# MARKET_CORS_ORIGINS below (or in the dashboard) to the real deployed
+# frontend origin, and VITE_API_BASE_URL in the Vercel frontend project
+# to this service's Render URL — see docs/deployment.md for the exact
+# steps, since that wiring is inherently a manual, cross-platform step.
+services:
+  - name: market-intelligence-backend
+    type: web
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile.demo
+    dockerContext: ./backend
+    plan: free
+    envVars:
+      - key: MARKET_CORS_ORIGINS
+        value: http://localhost:5173,http://127.0.0.1:5173

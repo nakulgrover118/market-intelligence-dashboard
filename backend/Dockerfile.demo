@@ -1,0 +1,35 @@
+# Demo variant of ../Dockerfile, for the free-tier public deployment only.
+#
+# The "real" Dockerfile treats data/ as a mounted volume on purpose (see
+# docs/deployment.md): that's the right pattern once there's an actual
+# refresh cycle, since it lets you update served predictions without
+# rebuilding the image. But a free-tier host (Render's free plan has no
+# persistent disk) can't mount a volume, and this project has no scheduled
+# refresh anyway (see docs/roadmap.md/deployment.md), so a mounted volume
+# would buy nothing here except complexity. Instead, this image bakes in
+# `deploy_data/` — a small (~46MB), deliberately committed snapshot of
+# `data/models/*.joblib` and `data/features/*.parquet` as of 2026-09-08 —
+# so the public demo is fully self-contained. Updating it means re-running
+# the pipeline, copying the new output into deploy_data/, committing, and
+# letting Render redeploy — a data refresh that happens to need a rebuild,
+# which is an explicit, documented tradeoff of this specific deployment,
+# not the project's general architecture.
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY pyproject.toml .
+RUN pip install --no-cache-dir -e .
+
+COPY app ./app
+COPY deploy_data /data
+ENV MARKET_DATA_ROOT=/data
+
+EXPOSE 8000
+
+# Render (and most PaaS Docker hosts) inject $PORT and expect the
+# container to listen on it; falling back to 8000 keeps `docker run`
+# working the same as the main Dockerfile for local use. Shell form
+# (not exec form) so the ${PORT:-8000} substitution actually happens.
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}

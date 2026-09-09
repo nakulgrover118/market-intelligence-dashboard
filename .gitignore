@@ -22,6 +22,12 @@ data/processed/
 *.joblib
 mlruns/
 
+# Exception: a small, deliberately committed snapshot of trained models +
+# feature parquet, used only to give the free-tier public demo (Render)
+# a self-contained image instead of a volume mount. See docs/deployment.md.
+!backend/deploy_data/**/*.joblib
+!backend/deploy_data/**/*.parquet
+
 # Frontend
 frontend/node_modules/
 frontend/dist/

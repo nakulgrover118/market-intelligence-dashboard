@@ -92,6 +92,61 @@ them needs configured:
   silently from the frontend's perspective (the browser blocks the
   response; the backend logs show nothing wrong).
 
+## Public demo (Render + Vercel, free tier)
+
+This is the actual live deployment of this project, and it deliberately
+diverges from the pattern above in one way: **the backend image bakes in
+a static data snapshot instead of mounting a volume.** Render's free plan
+has no persistent disk, and this project has no scheduled refresh anyway
+(see "What's deliberately not here" below) — a volume would add
+complexity for a refresh cycle that doesn't exist yet. So:
+
+- `backend/deploy_data/` is a small (~46MB), deliberately git-tracked
+  snapshot of `data/models/*.joblib` and `data/features/*.parquet` (an
+  explicit exception carved out of `.gitignore` for exactly this
+  directory) — everything `ModelRegistry` needs to serve predictions,
+  frozen as of whenever it was last copied there.
+- `backend/Dockerfile.demo` `COPY`s it to `/data` at build time instead of
+  declaring a `VOLUME` — self-contained image, no mount needed.
+- `render.yaml` at the repo root is a Render Blueprint pointing at that
+  Dockerfile, so Render can deploy it with almost no manual configuration.
+
+**Consequence, stated plainly**: refreshing the public demo's predictions
+means re-running the pipeline locally, copying the new
+`data/models`/`data/features` output into `backend/deploy_data/`,
+committing, and pushing — which triggers a Render rebuild. That's a
+data refresh that requires a rebuild, which is *not* true of the general
+architecture described above; it's a specific, documented tradeoff of
+this specific free-tier deployment, made explicit here rather than
+silently diverging from the rest of this document.
+
+**Deploying it:**
+
+1. **Backend, on Render**: sign in to [Render](https://render.com) with
+   GitHub, then **New → Blueprint**, and select this repository. Render
+   reads `render.yaml` and proposes the `market-intelligence-backend`
+   service automatically — click **Apply**. First build takes a few
+   minutes (installing `lightgbm`/`shap`/etc.); once live, note its URL
+   (`https://market-intelligence-backend-xxxx.onrender.com`).
+2. **Frontend, on Vercel**: sign in to [Vercel](https://vercel.com) with
+   GitHub, **Add New → Project**, import this repository, and set
+   **Root Directory** to `frontend` in the import screen (Vercel
+   auto-detects the Vite framework preset from there). Before deploying,
+   add an environment variable **`VITE_API_BASE_URL`** set to the Render
+   URL from step 1 — it's read at build time (see "Frontend" above), so
+   it must be set before the first build, not after.
+3. **Wire CORS back**: once Vercel gives you the frontend's real URL
+   (`https://your-project.vercel.app`), go back to the Render service's
+   **Environment** tab and update `MARKET_CORS_ORIGINS` to that URL (comma-
+   separate it with the localhost defaults if you still want local dev to
+   keep working against the deployed backend). Render redeploys
+   automatically on an env var change.
+
+This wiring is inherently a manual, cross-platform, two-way handshake
+(each side needs the other's URL, and neither platform knows about the
+other) — there's no blueprint field that does it in one step across two
+different hosting providers.
+
 ## Frontend
 
 Static build, deployable anywhere that serves static files (Vercel,
