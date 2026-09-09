@@ -19,4 +19,4 @@ services:
     plan: free
     envVars:
       - key: MARKET_CORS_ORIGINS
-        value: http://localhost:5173,http://127.0.0.1:5173
+        value: https://market-intelligence-dashboard-two-lilac.vercel.app,http://localhost:5173,http://127.0.0.1:5173

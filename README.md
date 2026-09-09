@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/nakulgrover118/market-intelligence-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/nakulgrover118/market-intelligence-dashboard/actions/workflows/ci.yml)
 
-Repo: [github.com/nakulgrover118/market-intelligence-dashboard](https://github.com/nakulgrover118/market-intelligence-dashboard)
+Repo: [github.com/nakulgrover118/market-intelligence-dashboard](https://github.com/nakulgrover118/market-intelligence-dashboard) · Live demo: [market-intelligence-dashboard-two-lilac.vercel.app](https://market-intelligence-dashboard-two-lilac.vercel.app) (free-tier backend may take ~50s to wake up — see [`docs/deployment.md`](docs/deployment.md) for what this deployment deliberately simplifies)
 
 A probabilistic forecasting system for NSE equities, indices, and gold/silver
 ETF proxies. Instead of BUY/SELL signals, it estimates **calibrated

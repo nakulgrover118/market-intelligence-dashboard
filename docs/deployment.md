@@ -94,6 +94,8 @@ them needs configured:
 
 ## Public demo (Render + Vercel, free tier)
 
+**Live**: [market-intelligence-dashboard-two-lilac.vercel.app](https://market-intelligence-dashboard-two-lilac.vercel.app) (frontend, Vercel) · [market-intelligence-backend-zirg.onrender.com](https://market-intelligence-backend-zirg.onrender.com) (backend API, Render — free tier, so it spins down after inactivity and the first request can take ~50s).
+
 This is the actual live deployment of this project, and it deliberately
 diverges from the pattern above in one way: **the backend image bakes in
 a static data snapshot instead of mounting a volume.** Render's free plan
