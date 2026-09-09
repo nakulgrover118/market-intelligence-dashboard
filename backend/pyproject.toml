@@ -23,6 +23,14 @@ dev = [
     "httpx>=0.27",
 ]
 
+[tool.setuptools.packages.find]
+# Without this, setuptools' flat-layout auto-discovery sees both `app/`
+# and `deploy_data/` (the git-tracked demo data snapshot — see
+# docs/deployment.md) as candidate top-level packages and refuses to
+# guess, breaking `pip install -e .` entirely. deploy_data is data, not
+# code; only app/ should ever be installed as a package.
+include = ["app*"]
+
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
