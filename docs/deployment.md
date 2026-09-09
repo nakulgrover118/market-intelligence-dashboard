@@ -147,6 +147,17 @@ This wiring is inherently a manual, cross-platform, two-way handshake
 other) — there's no blueprint field that does it in one step across two
 different hosting providers.
 
+**A real bug found on the first Render deploy**: the build succeeded but
+the container crashed on startup with `libgomp.so.1: cannot open shared
+object file`. LightGBM's precompiled wheel is dynamically linked against
+libgomp (OpenMP's runtime) *at import time*, not just when actually
+training — and `python:3.11-slim` is Debian slim, which doesn't ship it.
+`pip install` has no way to surface this, since the wheel installs fine;
+it only shows up the moment something does `import lightgbm`. Fixed in
+both `Dockerfile.demo` and the main `Dockerfile` by installing `libgomp1`
+via `apt-get` before the `pip install` step — a one-line, easy-to-miss
+dependency that any `python:*-slim` image running LightGBM needs.
+
 ## Frontend
 
 Static build, deployable anywhere that serves static files (Vercel,

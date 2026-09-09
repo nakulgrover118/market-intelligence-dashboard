@@ -8,6 +8,15 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# LightGBM's precompiled wheel is linked against libgomp (OpenMP) at
+# import time, not just training time — python:3.11-slim doesn't ship it,
+# so `import lightgbm` fails at container startup with "libgomp.so.1:
+# cannot open shared object file" even though pip install succeeds
+# cleanly. Found the hard way deploying Dockerfile.demo to Render.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY pyproject.toml .
 # Install dependencies before copying the rest of the source so dependency
 # installation is cached across builds that only change application code.
