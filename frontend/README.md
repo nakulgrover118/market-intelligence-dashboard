@@ -8,6 +8,8 @@ two independent, calibrated move-probabilities per instrument — up and
 down — with their SHAP explanations. See
 [../docs/roadmap.md](../docs/roadmap.md) for the full project methodology.
 
+**Live**: [market-intelligence-dashboard-two-lilac.vercel.app](https://market-intelligence-dashboard-two-lilac.vercel.app) (backend is free-tier Render, so it can take ~50s to wake up if idle — see [`../docs/deployment.md`](../docs/deployment.md))
+
 ## Running locally
 
 Requires the backend running first (`cd ../backend && uvicorn app.main:app`,
