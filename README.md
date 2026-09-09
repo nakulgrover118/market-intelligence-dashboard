@@ -15,6 +15,10 @@ trade-offs, and every result — including the negative ones — is reported
 honestly. The full decision log and findings live in
 [`docs/roadmap.md`](docs/roadmap.md); this README is the front door.
 
+<p align="center">
+  <img src="data/results/dashboard_screenshot.png" width="700" alt="Dashboard screenshot: NSE instruments with diverging down/up probability bars and Bullish/Bearish/Mixed lean labels" />
+</p>
+
 ## The headline result
 
 | Model | 5-day ROC-AUC | 5-day Brier | 20-day ROC-AUC | 20-day Brier |
