@@ -1,5 +1,9 @@
 # Market & Commodities Intelligence Dashboard
 
+[![CI](https://github.com/nakulgrover118/market-intelligence-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/nakulgrover118/market-intelligence-dashboard/actions/workflows/ci.yml)
+
+Repo: [github.com/nakulgrover118/market-intelligence-dashboard](https://github.com/nakulgrover118/market-intelligence-dashboard)
+
 A probabilistic forecasting system for NSE equities, indices, and gold/silver
 ETF proxies. Instead of BUY/SELL signals, it estimates **calibrated
 probabilities** of a large price move over fixed horizons — and is explicit,
